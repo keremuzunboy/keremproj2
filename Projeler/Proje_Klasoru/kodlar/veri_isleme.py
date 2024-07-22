@@ -1,7 +1,7 @@
 import pandas as pd
 
 # CSV dosyasının yolunu belirtin
-dosya_yolu = '../veri/buyuk_veri_dosyasi.csv'
+dosya_yolu = 'veri/buyuk_veri_dosyasi.csv'
 
 # CSV dosyasını okuyun
 veri = pd.read_csv(dosya_yolu)

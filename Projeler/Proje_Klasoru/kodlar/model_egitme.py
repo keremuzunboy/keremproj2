@@ -4,7 +4,7 @@ from sklearn.model_selection import train_test_split
 import torch
 
 # Veriyi yükleyin
-data = pd.read_csv('../veri/buyuk_veri_dosyasi.csv')
+data = pd.read_csv('veri/buyuk_veri_dosyasi.csv')
 
 # Metin verilerini birleştirerek eğitim veri setini oluşturun
 data['text'] = data['isim'] + ' ' + data['soyisim'] + ', ' + data['yas'].astype(str) + ' yaşında, yıllık geliri ' + data['yillik_gelir'].astype(str) + ' TL.'

@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import os
 
 # Rastgele veri oluşturma
 np.random.seed(0)
@@ -32,13 +31,6 @@ veri = pd.DataFrame({
 })
 
 # CSV dosyasını yazma
-output_dir = '../veri'
-output_file = 'buyuk_veri_dosyasi.csv'
+veri.to_csv('veri/buyuk_veri_dosyasi.csv', index=False)
 
-# Check if directory exists, if not, create it
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
-
-veri.to_csv(os.path.join(output_dir, output_file), index=False)
-
-print(f"Veri dosyası '{output_file}' oluşturuldu.")
+print("Veri dosyası 'buyuk_veri_dosyasi.csv' oluşturuldu.")
