@@ -6,7 +6,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.pyplot as plt
+import mplfinance as mpf
 from datetime import datetime, timedelta
+import ta
 
 def get_crypto_data(symbol, start_date, end_date):
     ticker = yf.Ticker(f"{symbol}-USD")
@@ -14,33 +16,21 @@ def get_crypto_data(symbol, start_date, end_date):
     return df
 
 def add_technical_indicators(df):
-    df['SMA_20'] = df['Close'].rolling(window=20).mean()
-    df['SMA_50'] = df['Close'].rolling(window=50).mean()
-    df['RSI'] = calculate_rsi(df['Close'], 14)
-    df['MACD'], df['Signal'] = calculate_macd(df['Close'])
-    df['Volatility'] = df['Close'].pct_change().rolling(window=20).std()
+    df['SMA_20'] = ta.trend.sma_indicator(df['Close'], window=20)
+    df['SMA_50'] = ta.trend.sma_indicator(df['Close'], window=50)
+    df['RSI'] = ta.momentum.rsi(df['Close'], window=14)
+    df['MACD'] = ta.trend.macd_diff(df['Close'])
+    df['BB_up'], df['BB_mid'], df['BB_low'] = ta.volatility.bollinger_hband_indicator(df['Close']), ta.volatility.bollinger_mavg(df['Close']), ta.volatility.bollinger_lband_indicator(df['Close'])
+    df['ATR'] = ta.volatility.average_true_range(df['High'], df['Low'], df['Close'])
+    df['OBV'] = ta.volume.on_balance_volume(df['Close'], df['Volume'])
     return df
-
-def calculate_rsi(prices, period=14):
-    delta = prices.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
-    return 100 - (100 / (1 + rs))
-
-def calculate_macd(prices, slow=26, fast=12, smooth=9):
-    exp1 = prices.ewm(span=fast, adjust=False).mean()
-    exp2 = prices.ewm(span=slow, adjust=False).mean()
-    macd = exp1 - exp2
-    signal = macd.ewm(span=smooth, adjust=False).mean()
-    return macd, signal
 
 def prepare_data(df):
     df = df.dropna()
     df['Target'] = df['Close'].shift(-1)
     df = df.dropna()
     
-    features = ['Open', 'High', 'Low', 'Close', 'Volume', 'SMA_20', 'SMA_50', 'RSI', 'MACD', 'Signal', 'Volatility']
+    features = ['Open', 'High', 'Low', 'Close', 'Volume', 'SMA_20', 'SMA_50', 'RSI', 'MACD', 'BB_up', 'BB_low', 'ATR', 'OBV']
     X = df[features]
     y = df['Target']
     
@@ -68,14 +58,28 @@ def evaluate_model(model, X_test, y_test, scaler):
     return predictions
 
 def plot_results(df, predictions):
-    plt.figure(figsize=(12, 6))
-    plt.plot(df.index[-len(predictions):], df['Close'][-len(predictions):], label='Gerçek Fiyat')
-    plt.plot(df.index[-len(predictions):], predictions, label='Tahmin')
-    plt.title('Kripto Para Tahmin Sonuçları')
-    plt.xlabel('Tarih')
-    plt.ylabel('Fiyat (USD)')
-    plt.legend()
-    plt.show()
+    # Mum grafiği için veri hazırlığı
+    df_plot = df[-len(predictions):].copy()
+    df_plot['Predictions'] = predictions
+
+    # Özel stil tanımlama
+    mc = mpf.make_marketcolors(up='g', down='r', inherit=True)
+    s = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', y_on_right=False)
+
+    # Ek grafikler
+    ap = [
+        mpf.make_addplot(df_plot['SMA_20'], color='blue', width=0.7),
+        mpf.make_addplot(df_plot['SMA_50'], color='red', width=0.7),
+        mpf.make_addplot(df_plot['Predictions'], type='scatter', markersize=3, color='fuchsia'),
+        mpf.make_addplot(df_plot['RSI'], panel=1, color='purple', ylabel='RSI'),
+        mpf.make_addplot(df_plot['MACD'], panel=2, color='green', ylabel='MACD'),
+        mpf.make_addplot(df_plot['Volume'], panel=3, type='bar', ylabel='Volume')
+    ]
+
+    # Grafiği çizme
+    mpf.plot(df_plot, type='candle', style=s, addplot=ap, volume=False, 
+             title=f'Kripto Para Analizi ve Tahminleri\nMSE: {mse:.2f}, R2: {r2:.2f}',
+             figsize=(12, 10), panel_ratios=(6,2,2,2))
 
 def predict_next_period(model, scaler, last_data):
     last_data_scaled = scaler.transform(last_data.reshape(1, -1))
@@ -84,7 +88,7 @@ def predict_next_period(model, scaler, last_data):
 
 # Ana program
 if __name__ == "__main__":
-    symbol = "MOVR"  # Bitcoin örneği
+    symbol = "BTC"  # Bitcoin örneği
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
     
@@ -96,8 +100,11 @@ if __name__ == "__main__":
     model, scaler = train_model(X_train, y_train)
     predictions = evaluate_model(model, X_test, y_test, scaler)
     
+    mse = mean_squared_error(y_test, predictions)
+    r2 = r2_score(y_test, predictions)
+    
     plot_results(df, predictions)
     
-    last_data = df.iloc[-1][['Open', 'High', 'Low', 'Close', 'Volume', 'SMA_20', 'SMA_50', 'RSI', 'MACD', 'Signal', 'Volatility']].values
+    last_data = df.iloc[-1][['Open', 'High', 'Low', 'Close', 'Volume', 'SMA_20', 'SMA_50', 'RSI', 'MACD', 'BB_up', 'BB_low', 'ATR', 'OBV']].values
     next_period_prediction = predict_next_period(model, scaler, last_data)
     print(f"Bir sonraki periyot için tahmin edilen {symbol} fiyatı: {next_period_prediction:.2f} USD")
